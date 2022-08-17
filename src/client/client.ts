@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { GUI } from "dat.gui";
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
 
 // position:物体相对于父级的位置、WorldPostion:物体在整体3d视图世界中的位置
 
@@ -34,59 +35,77 @@ function onWindowResize() {
 const stats = Stats();
 document.body.appendChild(stats.dom);
 
-const boxGeometry = new THREE.BoxGeometry();
-const sphereGeometry = new THREE.SphereGeometry();
-const icosahedronGeometry = new THREE.IcosahedronGeometry();
-const planeGeometry = new THREE.PlaneGeometry();
-const torusKnotGeometry = new THREE.TorusKnotGeometry();
+const linght = new THREE.AmbientLight();
+scene.add(linght);
 
-const material = new THREE.MeshBasicMaterial();
+const gui = new GUI()
+const animationsFolder = gui.addFolder('Animations')
+animationsFolder.open()
 
-const texture = new THREE.TextureLoader().load("img/color.jpg");
-material.map = texture;
+let mixer: THREE.AnimationMixer;
+let modelReady = false;
+const animationActions: THREE.AnimationAction[] = [];
+let activeAction: THREE.AnimationAction;
+let lastAction: THREE.AnimationAction;
+const fbxLoader: FBXLoader = new FBXLoader();
 
-const envTexture = new THREE.CubeTextureLoader().load([
-  "img/px.jpg",
-  "img/nx.jpg",
-  "img/py.jpg",
-  "img/ny.jpg",
-  "img/pz.jpg",
-  "img/nz.jpg"
-]);
-envTexture.mapping = THREE.CubeReflectionMapping;
-material.envMap = envTexture;
+fbxLoader.load(
+  'models/vanguard_t_choonyung.fbx',
+  (object) => {
+    object.scale.set(0.01, 0.01, 0.01);
+    mixer = new THREE.AnimationMixer(object);
 
+    const animationAction = mixer.clipAction(
+      (object as THREE.Object3D).animations[0]
+    )
+    animationActions.push(animationAction);
+    animationsFolder.add(animations, 'default')
+    activeAction = animationActions[0]
+    scene.add(object)
 
-const cube = new THREE.Mesh(boxGeometry, material);
-cube.position.x = 5;
-scene.add(cube)
+    // 添加动画材质
+    fbxLoader.load(
+      'models/vanguard@breakdance.fbx',
+      (object) => {
+        const animationAction = mixer.clipAction(
+          (object as THREE.Object3D).animations[0]
+        )
+        animationActions.push(animationAction);
+        animationsFolder.add(animations, 'breakdance')
+        modelReady = true;
+      }
+    )
+  }
+)
 
-const sphere = new THREE.Mesh(sphereGeometry, material);
-sphere.position.x = 3;
-scene.add(sphere)
-
-const icosahedron = new THREE.Mesh(icosahedronGeometry, material);
-icosahedron.position.x = 0;
-scene.add(icosahedron)
-
-const plane = new THREE.Mesh(planeGeometry, material);
-plane.position.x = -2;
-scene.add(plane)
-
-const torusKnot = new THREE.Mesh(torusKnotGeometry, material);
-torusKnot.position.x = -5;
-scene.add(torusKnot)
-
-const options = {
-  side: {
-    
+const animations = {
+  default: () => {
+    setAction(animationActions[0])
+  },
+  breakdance: () => {
+    setAction(animationActions[1])
   }
 }
 
+const setAction = (toAcrtion: THREE.AnimationAction) => {
+  console.log(toAcrtion)
+  if (toAcrtion !== activeAction) {
+    lastAction = activeAction;
+    activeAction = toAcrtion;
+    lastAction.fadeOut(1);
+    activeAction.reset();
+    activeAction.fadeIn(1);
+    activeAction.play();
+  }
+}
 
+const clock = new THREE.Clock()
 
 function animate() {
   requestAnimationFrame(animate);
+  if (modelReady) {
+    mixer.update(clock.getDelta())
+  }
   render();
   stats.update();
 
