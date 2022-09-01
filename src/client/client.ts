@@ -3,6 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import gsap from "gsap";
+import { GUI } from 'dat.gui';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
@@ -10,13 +11,13 @@ scene.background = new THREE.Color(0x87ceeb);
 const ambientLight = new THREE.AmbientLight(0xaaaaaa);
 scene.add(ambientLight);
 
-const light1 = new THREE.DirectionalLight(0x666666);
+const light1 = new THREE.DirectionalLight(0x111111);
 light1.position.set(0, 0, 0);
-const light2 = new THREE.AmbientLight(0x666666);
-// light1.position.set(0, 0, 0);
+const light2 = new THREE.AmbientLight(0x555555);
+light1.position.set(100, 100, 100);
 light2.position.set(0, 0, 0);
-scene.add(light1);
-// scene.add(light2);
+// scene.add(light1);
+scene.add(light2);
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -24,7 +25,14 @@ const camera = new THREE.PerspectiveCamera(
   0.01,
   1000
 );
-camera.position.set(174, 196, 375);
+
+camera.position.set(-22.57, 189.18, 268.59);
+const gui = new GUI();
+const cameraFolder = gui.addFolder("camera");
+cameraFolder.add(camera.position, 'x', -200, 1000, 0.01)
+cameraFolder.add(camera.position, 'y', -200, 1000, 0.01)
+cameraFolder.add(camera.position, 'z', -200, 1000, 0.01)
+cameraFolder.open()
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
@@ -47,7 +55,7 @@ const fbxLoader = new FBXLoader();
 // );
 let renderEnabled = false;
 let material = new THREE.MeshPhongMaterial({
-  shininess: 20,
+  shininess: 40,
   side: THREE.FrontSide,
 });
 let mixer: THREE.AnimationMixer;
@@ -75,10 +83,15 @@ async function fbx() {
     // eslint-disable-next-line no-await-in-loop
     const texture = await textureLoader.loadAsync(`img/city/${i + 1}.jpg`);
     const meshChild = obj.children[i] as THREE.Mesh;
-    let materialClone = material.clone();
-    materialClone.map = texture;
+    // let materialClone = material.clone();
+    let materialClone = new THREE.MeshPhongMaterial({
+      shininess: 40,
+      side: THREE.FrontSide,
+      map: texture,
+    });
+    // materialClone.map = texture;
     meshChild.material = materialClone;
-    meshChild.material.needsUpdate = true;
+    // materialClone.needsUpdate = true;
     if (list.includes(meshChild.name)) {
       let meshClone = meshChild.clone();
       meshChild.visible = false;
@@ -143,6 +156,16 @@ function moveEnterObject(eve: MouseEvent) {
     }
   });
 }
+let placePositionMap: { [key: string]: any } = {
+  "Transportation": {x: 43.6, y: 96.54, z: -141.69},
+    "Utilities": {x: 175.94, y: 30.36, z: -200},
+    "Heavy_Industry": {x: 136.24, y: 30.36, z: 255.35},
+    "Retail": {x: 228.88, y: 3.89, z: 43.6},
+    "Finance": {x: 162.71, y: 70.07, z: 70.07},
+    "Manufacturing": {x: 30.36, y: 43.6, z: -35.81},
+    "Goverment": {x: 56.83, y: 56.83, z: -35.81},
+    "Healthcare": {x: -9.34, y: 3.89, z: 202.41},
+}
 function changePlaceView(enc: MouseEvent) {
   enc.preventDefault();
   mouse.x = (enc.clientX / renderer.domElement.clientWidth) * 2 - 1;
@@ -156,22 +179,13 @@ function changePlaceView(enc: MouseEvent) {
   }
   pcickableObjects.forEach((o: THREE.Mesh, i) => {
     if (intersectedObject && intersectedObject.name === o.name) {
-      let position = new THREE.Vector3();
-      pcickableObjects[i].getWorldPosition(position)
-
-      // new TWEEN.Tween(camera.position)
-      //   .to({
-      //     x: position.x + 100,
-      //     y: position.y + 100,
-      //     z: position.z + 100
-      //   }, 2000)
-      //   .start()
-
+      console.warn('intersectedObject.name', intersectedObject.name)
+      let position = placePositionMap[intersectedObject.name]
       let an = gsap.to(camera.position, {
         duration: 3,
-        x: position.x + 100,
-        y: position.y + 100,
-        z: position.z + 100,
+        x: position.x,
+        y: position.y,
+        z: position.z,
         ease: "none",
       });
     }
