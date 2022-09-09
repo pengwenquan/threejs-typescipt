@@ -21,8 +21,9 @@
     "webpack-merge": "^5.8.0"
   },
   "dependencies": {
+    "cannon-es": "^0.20.0",
     "dat.gui": "^0.7.9",
-    "three": "^0.143.0",
-    "gsap": "^3.11.0"
+    "gsap": "^3.11.0",
+    "three": "^0.143.0"
   }
 }

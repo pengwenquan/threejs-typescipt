@@ -1,23 +1,24 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import gsap from "gsap";
 import { GUI } from 'dat.gui';
+import * as CANNON from 'cannon-es';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader' 
+import CannonUtils from "./utils/cannonUtils";
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
 
-const ambientLight = new THREE.AmbientLight(0xaaaaaa);
-scene.add(ambientLight);
-
-const light1 = new THREE.DirectionalLight(0x111111);
-light1.position.set(0, 0, 0);
-const light2 = new THREE.AmbientLight(0x555555);
-light1.position.set(100, 100, 100);
-light2.position.set(0, 0, 0);
-// scene.add(light1);
-scene.add(light2);
+const light1 = new THREE.SpotLight();
+light1.position.set(25, 50, 10);
+light1.angle = Math.PI / 4;
+light1.penumbra = 0.5;
+light1.castShadow = true;
+light1.shadow.mapSize.width = 1024;
+light1.shadow.mapSize.height = 1024;
+light1.shadow.camera.far = 20;
+light1.shadow.camera.near = 0.5;
+scene.add(light1);
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -26,7 +27,7 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 
-camera.position.set(-22.57, 189.18, 268.59);
+camera.position.set(4, 6, 7);
 const gui = new GUI();
 const cameraFolder = gui.addFolder("camera");
 cameraFolder.add(camera.position, 'x', -200, 1000, 0.01)
@@ -45,170 +46,240 @@ document.body.appendChild(renderer.domElement);
 
 const orbitControls = new OrbitControls(camera, renderer.domElement);
 orbitControls.enableDamping = true;
+orbitControls.target.y = 0.5;
 
-const fbxLoader = new FBXLoader();
-// fbxLoader.load(
-//   'models/city.fbx',
-//   (object) => {
-//     scene.add(object);
-//   },
-// );
-let renderEnabled = false;
-let material = new THREE.MeshPhongMaterial({
-  shininess: 40,
-  side: THREE.FrontSide,
-});
-let mixer: THREE.AnimationMixer;
-let pcickableObjects: THREE.Mesh[] = [];
-const originalMaterials: { [id: string]: THREE.Material | THREE.Material[] } =
-  {};
-async function fbx() {
-  const textureLoader = new THREE.TextureLoader();
-  const obj = await fbxLoader.loadAsync("models/city.fbx");
-  mixer = new THREE.AnimationMixer(obj);
-  const animation = mixer.clipAction(obj.animations[0]);
-  // console.log("animation", obj);
-  obj.position.set(0, -40, 0);
-  let list = [
-    "Transportation",
-    "Utilities",
-    "Heavy_Industry",
-    "Retail",
-    "Finance",
-    "Manufacturing",
-    "Goverment",
-    "Healthcare",
-  ];
-  for (let i = 0; i < 56; i++) {
-    // eslint-disable-next-line no-await-in-loop
-    const texture = await textureLoader.loadAsync(`img/city/${i + 1}.jpg`);
-    const meshChild = obj.children[i] as THREE.Mesh;
-    // let materialClone = material.clone();
-    let materialClone = new THREE.MeshPhongMaterial({
-      shininess: 40,
-      side: THREE.FrontSide,
-      map: texture,
-    });
-    // materialClone.map = texture;
-    meshChild.material = materialClone;
-    // materialClone.needsUpdate = true;
-    if (list.includes(meshChild.name)) {
-      let meshClone = meshChild.clone();
-      meshChild.visible = false;
-      meshChild.geometry.dispose();
-      meshChild.material.dispose();
-      meshClone.scale.set(0.5, 0.5, 0.5);
-      obj.add(meshClone);
-      pcickableObjects.push(meshClone);
-      originalMaterials[meshChild.name] = meshChild.material
-    }
-  }
-  console.log("animation", obj);
-  mixer = new THREE.AnimationMixer(obj);
-
-  const animationAction = mixer.clipAction(
-    (obj as THREE.Object3D).animations[0]
-  );
-  scene.add(obj);
-  animationAction.play();
-  renderEnabled = true;
-}
-fbx();
-
-window.addEventListener("resize", onWindowResize, false);
-function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  render();
-}
-
-let mouse = new THREE.Vector2();
-const raycaster = new THREE.Raycaster();
-let intersects: THREE.Intersection[];
-let intersectedObject: THREE.Object3D | null;
-let highlightMaterial = new THREE.MeshBasicMaterial({
-  color: 0x40a9ff,
-  transparent: true,
-  opacity: 0.7
-})
-
-let cloneMesh: THREE.Mesh;
-
-// 鼠标悬停物体
-function moveEnterObject(eve: MouseEvent) {
-  eve.preventDefault();
-  mouse.x = (eve.clientX / renderer.domElement.clientWidth) * 2 - 1;
-  mouse.y = -(eve.clientY / renderer.domElement.clientHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  intersects = raycaster.intersectObjects(pcickableObjects, false);
-  if (intersects.length > 0) {
-    intersectedObject = intersects[0].object;
-  } else {
-    intersectedObject = null;
-  }
-  pcickableObjects.forEach((o: THREE.Mesh, i) => {
-    if (intersectedObject && intersectedObject.name === o.name) {
-      pcickableObjects[i].material = highlightMaterial;
-    } 
-    else {
-      pcickableObjects[i].material = originalMaterials[o.name];
-    }
-  });
-}
-let placePositionMap: { [key: string]: any } = {
-  "Transportation": {x: 43.6, y: 96.54, z: -141.69},
-    "Utilities": {x: 175.94, y: 30.36, z: -200},
-    "Heavy_Industry": {x: 136.24, y: 30.36, z: 255.35},
-    "Retail": {x: 228.88, y: 3.89, z: 43.6},
-    "Finance": {x: 162.71, y: 70.07, z: 70.07},
-    "Manufacturing": {x: 30.36, y: 43.6, z: -35.81},
-    "Goverment": {x: 56.83, y: 56.83, z: -35.81},
-    "Healthcare": {x: -9.34, y: 3.89, z: 202.41},
-}
-function changePlaceView(enc: MouseEvent) {
-  enc.preventDefault();
-  mouse.x = (enc.clientX / renderer.domElement.clientWidth) * 2 - 1;
-  mouse.y = -(enc.clientY / renderer.domElement.clientHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  intersects = raycaster.intersectObjects(pcickableObjects, false);
-  if (intersects.length > 0) {
-    intersectedObject = intersects[0].object;
-  } else {
-    intersectedObject = null;
-  }
-  pcickableObjects.forEach((o: THREE.Mesh, i) => {
-    if (intersectedObject && intersectedObject.name === o.name) {
-      console.warn('intersectedObject.name', intersectedObject.name)
-      let position = placePositionMap[intersectedObject.name]
-      let an = gsap.to(camera.position, {
-        duration: 3,
-        x: position.x,
-        y: position.y,
-        z: position.z,
-        ease: "none",
-      });
-    }
-  });
-}
-
-window.addEventListener("mousemove", moveEnterObject, false);
-
-window.addEventListener("click", changePlaceView, false);
 
 const stats = Stats();
 document.body.appendChild(stats.dom);
 
+const world = new CANNON.World()
+world.gravity.set(0, -9.82, 0);
+const basicMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+const normalMeterial = new THREE.MeshNormalMaterial({
+  side: THREE.DoubleSide,
+  wireframe: true,
+})
+const phoneMeterial = new THREE.MeshPhongMaterial();
+const realMeterial = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  reflectivity: 0,
+  roughness: 0.2,
+  metalness: 1,
+  clearcoat: 0.15,
+  clearcoatRoughness: 0.5,
+  side: THREE.DoubleSide
+});
+
+const inverMeterial = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  metalness: 0,
+  roughness: 0.35,
+  transmission: 1.0,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.35,
+  ior: 1.25,
+  // thickness: 0,
+})
+
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+const envTextrue = new THREE.CubeTextureLoader().load(
+  [
+    'img/px.jpg',
+    'img/nx.jpg',
+    'img/py.jpg',
+    'img/ny.jpg',
+    'img/pz.jpg',
+    'img/nz.jpg',
+  ],
+  () => {
+    inverMeterial.envMap = pmremGenerator.fromCubemap(envTextrue).texture
+    pmremGenerator.dispose()
+  }
+)
+const ballMaterial = [];
+
+for (let i = 1; i < 11; i++) {
+  ballMaterial.push(
+    new THREE.MeshPhysicalMaterial({
+      map: new THREE.TextureLoader().load(`img/lottery/${i}-ball.jpeg`),
+      roughness: 0.88,
+      metalness: 0.5,
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.15,
+    })
+  )
+  console.warn('ballMaterial', ballMaterial)
+}
+
+const positions = [
+  [ -2, 3, 0 ],
+  [ 0, 3, 0 ],
+  [2, 3, 0],
+  [0, 3, -2],
+  [0, 3, 2],
+  [-2, 6, 0],
+  [0.5, 8, 0.5],
+  [2, 6, 0],
+  [0, 6, -2],
+  [0, 6, 2],
+
+]
+
+const sphereMesh: THREE.Mesh[] = []
+const sphereBody: CANNON.Body[] = []
+for (let i = 0; i < 10; i++) {
+  const sphereGeo = new THREE.SphereGeometry(1, 16, 16);
+  sphereMesh.push(
+    new THREE.Mesh(sphereGeo, ballMaterial[i])
+  )
+  sphereMesh[i].position.set(positions[i][0], positions[i][1], positions[i][2])
+  sphereMesh[i].castShadow = true;
+  sphereMesh[i].receiveShadow = true;
+  scene.add(sphereMesh[i]);
+  const sphereShape = new CANNON.Sphere(1);
+  sphereBody.push(new CANNON.Body({ mass: 1 }));
+  sphereBody[i].addShape(sphereShape);
+  sphereBody[i].position.set(sphereMesh[i].position.x, sphereMesh[i].position.y, sphereMesh[i].position.z)
+  world.addBody(sphereBody[i]);
+}
+
+let inverseSphere: THREE.Object3D;
+let inverseSphereBody: CANNON.Body;
+let innerRail: THREE.Object3D;
+let outerRail: THREE.Object3D;
+let modelLoaded = false;
+const objLoader = new OBJLoader();
+
+objLoader.load(
+  'models/inverseSphere4.obj',
+  (object) => {
+    object.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        if (child.name.startsWith('sphere')) {
+          inverseSphere = child;
+          ( inverseSphere as THREE.Mesh ).material = inverMeterial;
+          inverseSphere.position.x = 0;
+          inverseSphere.position.y = 5;
+          let constraintBody = new CANNON.Body({ mass: 0 })
+          constraintBody.addShape(new CANNON.Sphere(0.01));
+          constraintBody.position.set(0, 5, 0);
+          world.addBody(constraintBody);
+  
+          const shape = CannonUtils.CreateTrimesh(
+            ( inverseSphere as THREE.Mesh ).geometry
+          )
+          inverseSphereBody = new CANNON.Body({ mass: 100 });
+          inverseSphereBody.addShape(shape);
+          inverseSphereBody.position.set(inverseSphere.position.x, inverseSphere.position.y, inverseSphere.position.z);
+          world.addBody(inverseSphereBody);
+          const c = new CANNON.PointToPointConstraint(
+            constraintBody,
+            new CANNON.Vec3(0, 0, 0),
+            inverseSphereBody,
+            new CANNON.Vec3(0, 0, 0),
+          )
+          world.addConstraint(c);
+        } else if (child.name.startsWith('outerRail_')) {
+          outerRail = child;
+          ( outerRail as THREE.Mesh ).material = realMeterial;
+          outerRail.position.y= 5;
+          const outerRailShape = CannonUtils.CreateTrimesh(
+            ( outerRail as THREE.Mesh ).geometry
+          )
+          const outerRailBody = new CANNON.Body({ mass: 0 });
+          outerRailBody.addShape(outerRailShape);
+          outerRailBody.position.set(0, 5, 0);
+          world.addBody(outerRailBody);
+        } else if (child.name.startsWith('innerRail_')) {
+          innerRail = child;
+          ( innerRail as THREE.Mesh ).material = inverMeterial;
+          innerRail.position.y = 5;
+          const innerRailShape = CannonUtils.CreateTrimesh(
+            ( innerRail as THREE.Mesh ).geometry
+          )
+
+          inverseSphereBody.addShape(innerRailShape);
+        }
+      } 
+      
+    })
+
+    scene.add(inverseSphere);
+    scene.add(outerRail);
+    scene.add(innerRail);
+    modelLoaded = true;
+  },
+  (xhr) => {
+    console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+  },
+  (error) => {
+    console.log(error)
+  }
+)
+
+const planeGeo = new THREE.PlaneGeometry( 25, 25 );
+const planeMesh = new THREE.Mesh(planeGeo, phoneMeterial);
+
+planeMesh.rotateX(-Math.PI / 2)
+planeMesh.receiveShadow = true;
+scene.add(planeMesh);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth , window.innerHeight);
+}, false)
+
+
 const clock = new THREE.Clock();
+let delta;
 function animate() {
   requestAnimationFrame(animate);
 
   orbitControls.update();
-  if (renderEnabled) {
-    mixer.update(clock.getDelta());
+  delta = Math.min(clock.getDelta(), 0.1);
+  
+  world.step(delta)
+  for (let i =0; i< 10; i++) {
+    sphereMesh[i].position.set(
+      sphereBody[i].position.x,
+      sphereBody[i].position.y,
+      sphereBody[i].position.z,
+    )
+
+    sphereMesh[i].quaternion.set(
+      sphereBody[i].quaternion.x,
+      sphereBody[i].quaternion.y,
+      sphereBody[i].quaternion.z,
+      sphereBody[i].quaternion.w,
+    )
   }
 
-  // TWEEN.update()
+  if (modelLoaded) {
+    inverseSphereBody.angularVelocity.set(0, 0, -0.2);
+    inverseSphere.position.set(
+      inverseSphereBody.position.x,
+      inverseSphereBody.position.y,
+      inverseSphereBody.position.z,
+    )
+    inverseSphere.quaternion.set(
+      inverseSphereBody.quaternion.x,
+      inverseSphereBody.quaternion.y,
+      inverseSphereBody.quaternion.z,
+      inverseSphereBody.quaternion.w,
+    )
+    innerRail.position.set(
+      inverseSphereBody.position.x,
+      inverseSphereBody.position.y,
+      inverseSphereBody.position.z,
+    )
+    innerRail.quaternion.set(
+      inverseSphereBody.quaternion.x,
+      inverseSphereBody.quaternion.y,
+      inverseSphereBody.quaternion.z,
+      inverseSphereBody.quaternion.w,
+    )
+  }
 
   render();
 
