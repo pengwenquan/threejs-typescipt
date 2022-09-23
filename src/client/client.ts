@@ -28,7 +28,9 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(15, 15, 15);
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({
+  antialias: true
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.outputEncoding = THREE.sRGBEncoding;
